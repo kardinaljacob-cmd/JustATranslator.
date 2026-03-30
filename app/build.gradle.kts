@@ -122,7 +122,9 @@ androidComponents {
 }
 
 dependencies {
-    // ... Core
+
+implementation("com.google.mlkit:translate:17.0.2")
+
     implementation(project(":core:ui"))
     implementation(project(":core:network"))
     implementation(project(":core:preferences"))
