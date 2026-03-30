@@ -25,7 +25,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
@@ -34,6 +33,118 @@ import com.google.mlkit.nl.translate.TranslatorOptions
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TranslatorCard()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TranslatorCard() {
+    var sourceText by remember { mutableStateOf("") }
+    var targetText by remember { mutableStateOf("") }
+    var isRuToEn by remember { mutableStateOf(true) }
+    
+    var isModelReady by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("Загрузка...") }
+
+    val options = remember(isRuToEn) {
+        TranslatorOptions.Builder()
+            .setSourceLanguage(if (isRuToEn) TranslateLanguage.RUSSIAN else TranslateLanguage.ENGLISH)
+            .setTargetLanguage(if (isRuToEn) TranslateLanguage.ENGLISH else TranslateLanguage.RUSSIAN)
+            .build()
+    }
+    
+    val translator = remember(options) { Translation.getClient(options) }
+
+    LaunchedEffect(options) {
+        isModelReady = false
+        statusMessage = "Загрузка словаря..."
+        val conditions = DownloadConditions.Builder().build()
+        translator.downloadModelIfNeeded(conditions)
+            .addOnSuccessListener { 
+                isModelReady = true 
+                statusMessage = "Готов к работе"
+            }
+            .addOnFailureListener { 
+                statusMessage = "Ошибка загрузки словаря"
+            }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Переводчик", style = MaterialTheme.typography.headlineSmall)
+                    
+                    TextButton(onClick = { 
+                        isRuToEn = !isRuToEn 
+                        sourceText = ""
+                        targetText = ""
+                    }) {
+                        Text(if (isRuToEn) "RU -> EN" else "EN -> RU")
+                    }
+                }
+
+                OutlinedTextField(
+                    value = sourceText,
+                    onValueChange = {
+                        sourceText = it
+                        if (it.isBlank()) {
+                            targetText = ""
+                        } else if (isModelReady) {
+                            translator.translate(it)
+                                .addOnSuccessListener { targetText = it }
+                                .addOnFailureListener { targetText = "Ошибка" }
+                        }
+                    },
+                    label = { Text(if (isRuToEn) "Русский" else "English") },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = targetText,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(if (isRuToEn) "English" else "Русский") },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                
+                Text(
+                    text = statusMessage, 
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
