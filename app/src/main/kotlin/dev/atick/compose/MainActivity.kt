@@ -20,51 +20,141 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.nl.translate.*
+import com.google.mlkit.nl.translate.TranslateLanguage
+import com.google.mlkit.nl.translate.Translation
+import com.google.mlkit.nl.translate.TranslatorOptions
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
-                    TranslatorScreen()
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TranslatorCard()
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TranslatorScreen() {
-    var input by remember { mutableStateOf("") }
-    var output by remember { mutableStateOf("Ожидание...") }
-    var isReady by remember { mutableStateOf(false) }
+fun TranslatorCard() {
+    var sourceText by remember { mutableStateOf("") }
+    var targetText by remember { mutableStateOf("") }
+    var isRuToEn by remember { mutableStateOf(true) } // Переключатель направления
+    
+    var isModelReady by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf("Загрузка...") }
 
-    val options = TranslatorOptions.Builder()
-        .setSourceLanguage(TranslateLanguage.RUSSIAN)
-        .setTargetLanguage(TranslateLanguage.ENGLISH)
-        .build()
-    val translator = remember { Translation.getClient(options) }
+    // Настройки меняются при нажатии на кнопку переключения
+    val options = remember(isRuToEn) {
+        TranslatorOptions.Builder()
+            .setSourceLanguage(if (isRuToEn) TranslateLanguage.RUSSIAN else TranslateLanguage.ENGLISH)
+            .setTargetLanguage(if (isRuToEn) TranslateLanguage.ENGLISH else TranslateLanguage.RUSSIAN)
+            .build()
+    }
+    
+    val translator = remember(options) { Translation.getClient(options) }
 
-    // Безопасная загрузка модели
-    LaunchedEffect(Unit) {
+    // Загрузка нужного словаря
+    LaunchedEffect(options) {
+        isModelReady = false
+        statusMessage = "Загрузка словаря..."
         val conditions = DownloadConditions.Builder().build()
         translator.downloadModelIfNeeded(conditions)
-            .addOnSuccessListener { isReady = true; output = "Готов к работе" }
-            .addOnFailureListener { output = "Ошибка загрузки словаря" }
+            .addOnSuccessListener { 
+                isModelReady = true 
+                statusMessage = "Готов к работе"
+            }
+            .addOnFailureListener { 
+                statusMessage = "Ошибка загрузки словаря"
+            }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Переводчик", style = MaterialTheme.typography.headlineSmall)
+                    
+                    // Кнопка смены языка
+                    TextButton(onClick = { 
+                        isRuToEn = !isRuToEn 
+                        sourceText = ""
+                        targetText = ""
+                    }) {
+                        Text(if (isRuToEn) "RU -> EN" else "EN -> RU")
+                    }
+                }
+
+                OutlinedTextField(
+                    value = sourceText,
+                    onValueChange = {
+                        sourceText = it
+                        if (it.isBlank()) {
+                            targetText = ""
+                        } else if (isModelReady) {
+                            translator.translate(it)
+                                .addOnSuccessListener { targetText = it }
+                                .addOnFailureListener { targetText = "Ошибка" }
+                        }
+                    },
+                    label = { Text(if (isRuToEn) "Русский" else "English") },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = targetText,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(if (isRuToEn) "English" else "Русский") },
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = Color.Transparent,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    )
+                )
+                
+                Text(
+                    text = statusMessage, 
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
     ) {
         TextField(
             value = input,
