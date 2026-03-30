@@ -123,7 +123,7 @@ androidComponents {
 
 dependencies {
 
-implementation("com.google.mlkit:translate:17.0.2")
+implementation("com.google.mlkit:translate:17.0.3")
 
     implementation(project(":core:ui"))
     implementation(project(":core:network"))
